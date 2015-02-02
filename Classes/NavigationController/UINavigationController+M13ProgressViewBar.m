@@ -140,6 +140,7 @@ static char secondaryColorKey;
     }];
     
     [self setIsShowingProgressBar:YES];
+    [self updateProgress];
 }
 
 - (void)updateProgress
