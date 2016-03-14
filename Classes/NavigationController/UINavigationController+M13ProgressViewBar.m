@@ -49,7 +49,7 @@ static char secondaryColorKey;
     if (animated == NO) {
         if (displayLink) {
             //Kill running animations
-            [displayLink removeFromRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+            [displayLink invalidate];
             [self setDisplayLink:nil];
         }
         [self setProgress:progress];
@@ -59,7 +59,7 @@ static char secondaryColorKey;
         [self setAnimationToValue:progress];
         if (!displayLink) {
             //Create and setup the display link
-            [displayLink removeFromRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+            [displayLink invalidate];
             displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(animateProgress:)];
             [self setDisplayLink:displayLink];
             [displayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
@@ -75,7 +75,7 @@ static char secondaryColorKey;
         CGFloat dt = (displayLink.timestamp - [self getAnimationStartTime]) / [self getAnimationDuration];
         if (dt >= 1.0) {
             //Order is important! Otherwise concurrency will cause errors, because setProgress: will detect an animation in progress and try to stop it by itself. Once over one, set to actual progress amount. Animation is over.
-            [displayLink removeFromRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+            [displayLink invalidate];
             [self setDisplayLink:nil];
             [self setProgress:[self getAnimationToValue]];
             return;
@@ -129,6 +129,26 @@ static char secondaryColorKey;
     }
 }
 
+#pragma mark Orientation
+
+- (UIInterfaceOrientation)currentDeviceOrientation
+{
+    UIInterfaceOrientation orientation;
+
+    //Define "M13_APP_EXTENSIONS" Preprocessor Macro for App Extension target
+#if defined(M13_APP_EXTENSIONS)
+    if ([UIScreen mainScreen].bounds.size.width < [UIScreen mainScreen].bounds.size.height) {
+        orientation = UIInterfaceOrientationPortrait;
+    } else {
+        orientation = UIInterfaceOrientationLandscapeLeft;
+    }
+#else
+    orientation = [UIApplication sharedApplication].statusBarOrientation;
+#endif
+  
+  return orientation;
+}
+
 #pragma mark Drawing
 
 - (void)showProgress
@@ -145,7 +165,7 @@ static char secondaryColorKey;
 
 - (void)updateProgress
 {
-    [self updateProgressWithInterfaceOrientation:[UIApplication sharedApplication].statusBarOrientation];
+    [self updateProgressWithInterfaceOrientation:[self currentDeviceOrientation]];
 }
 
 - (void)updateProgressWithInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
@@ -164,7 +184,13 @@ static char secondaryColorKey;
 	}
     
     //Calculate the frame of the navigation bar, based off the orientation.
-    CGSize screenSize = [UIScreen mainScreen].bounds.size;
+    UIView *topView = self.topViewController.view;
+    CGSize screenSize;
+    if (topView) {
+        screenSize = topView.bounds.size;
+    } else {
+        screenSize = [UIScreen mainScreen].bounds.size;
+    }
     CGFloat width = 0.0;
     CGFloat height = 0.0;
     //Calculate the width of the screen
@@ -208,7 +234,7 @@ static char secondaryColorKey;
 
 - (void)drawIndeterminate
 {
-    [self drawIndeterminateWithInterfaceOrientation:[UIApplication sharedApplication].statusBarOrientation];
+    [self drawIndeterminateWithInterfaceOrientation:[self currentDeviceOrientation]];
 }
 
 - (void)drawIndeterminateWithInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
@@ -225,20 +251,13 @@ static char secondaryColorKey;
         //Calculate the frame of the navigation bar, based off the orientation.
         CGSize screenSize = [UIScreen mainScreen].bounds.size;
         CGFloat width = 0.0;
-        CGFloat height = 0.0;
         //Calculate the width of the screen
         if (UIInterfaceOrientationIsLandscape(interfaceOrientation)) {
             //Use the maximum value
             width = MAX(screenSize.width, screenSize.height);
-            if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPhone) {
-                height = 32.0; //Hate hardcoding values, but autolayout doesn't work, and cant retreive the new height until after the animation completes.
-            } else {
-                height = 44.0; //Hate hardcoding values, but autolayout doesn't work, and cant retreive the new height until after the animation completes.
-            }
         } else {
             //Use the minimum value
             width = MIN(screenSize.width, screenSize.height);
-            height = 44.0; //Hate hardcoding values, but autolayout doesn't work, and cant retreive the new height until after the animation completes.
         }
         
         //Create the pattern image
